@@ -465,6 +465,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 </div>
               )}
 
+              {channel.name.toLowerCase().includes('axn') && (
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 max-w-md text-center mb-5">
+                  <span className="text-[11px] text-blue-300 leading-relaxed font-medium">
+                    💡 <strong>Notice:</strong> Legacy AXN Crime feeds were discontinued in Europe. We have cross-linked live active AXN and Crime TV feeds (use <strong>Try Source</strong> to alternate feeds).
+                  </span>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center justify-center gap-3">
                 {/* Alternative Source Switcher on Error */}
                 {sources.length > 1 && (

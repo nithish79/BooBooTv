@@ -144,15 +144,15 @@ export function useHlsPlayer({
           highBufferWatchdogPeriod: 2,
           nudgeOffset: 0.2,
           nudgeMaxRetry: 5,
-          manifestLoadingTimeOut: 8000,
-          manifestLoadingMaxRetry: 2,
-          manifestLoadingRetryDelay: 500,
-          levelLoadingTimeOut: 8000,
-          levelLoadingMaxRetry: 2,
-          fragLoadingTimeOut: 8000,
+          manifestLoadingTimeOut: 5000,
+          manifestLoadingMaxRetry: 1,
+          manifestLoadingRetryDelay: 400,
+          levelLoadingTimeOut: 5000,
+          levelLoadingMaxRetry: 1,
+          fragLoadingTimeOut: 6000,
           fragLoadingMaxRetry: 2,
-          fragLoadingRetryDelay: 500,
-          fragLoadingMaxRetryTimeout: 12000,
+          fragLoadingRetryDelay: 400,
+          fragLoadingMaxRetryTimeout: 10000,
         });
 
         hlsRef.current = hls;
@@ -248,6 +248,14 @@ export function useHlsPlayer({
                 if (allSources.length > 1 && sourceIndex < allSources.length - 1) {
                   console.info(`[HLS] Source ${sourceIndex + 1} failed. Failing over to alternative source ${sourceIndex + 2}...`);
                   setSourceIndex((prev) => prev + 1);
+                  return;
+                }
+
+                // If already on proxy or manifest failed to load, fail fast without infinite buffering
+                if (fallbackToProxy || streamingMode === 'proxy' || data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR) {
+                  setError('Channel stream is currently offline or unreachable. Please try another channel or source.');
+                  setIsBuffering(false);
+                  hls.destroy();
                   return;
                 }
 

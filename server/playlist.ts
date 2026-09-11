@@ -14,11 +14,16 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 let streamsMap: Map<string, string[]> | null = null;
 let streamsLastFetched = 0;
 
-// Known problematic / blocked domains in raw community playlists
+// Known problematic / blocked / dead domains in raw community playlists
 const PROBLEMATIC_DOMAINS = [
-  'aynascope.net',       // ISP blocked (returns HTML block page)
-  '23.237.104.106:8080', // Dead Xtream server (timed out)
-  '.amagi.tv/',          // CloudFront geo-blocked in most regions
+  'aynascope.net',              // ISP blocked (returns HTML block page)
+  '23.237.104.106:8080',        // Dead Xtream server (timed out)
+  '88.212.15.19',               // Dead host (connection refused)
+  'stream.cammonitorplus.net',  // Dead host (connection timed out)
+  'mdc.ott.alticeusa.net',      // Dead host (connection timed out)
+  'bantel-cdn1.iptvperu.tv',    // 403 Forbidden
+  'jmp2.uk',                    // Pluto redirector returning 400 (geo-blocked)
+  '.amagi.tv/',                 // CloudFront geo-blocked in most regions
 ];
 
 function isProblematicUrl(url: string): boolean {
@@ -157,11 +162,11 @@ export async function parseM3U(content: string, sourceUrl: string): Promise<Play
         }
       }
 
+      const nameLower = currentMeta.name?.toLowerCase() || '';
+      const tvgLower = currentMeta.tvgId?.toLowerCase() || '';
+
       // If channel is HBO, attach alternative working feeds (including high-speed CloudFront movie feeds)
-      if (
-        currentMeta.name?.toLowerCase().includes('hbo') ||
-        currentMeta.tvgId?.toLowerCase().includes('hbo')
-      ) {
+      if (nameLower.includes('hbo') || tvgLower.includes('hbo')) {
         const hboFallbacks = [
           'http://4.30.180.36:8420/hbo2/index.m3u8?token=test',
           'https://d6dg3ebeih71x.cloudfront.net/Gravitas_Movies.m3u8',
@@ -169,6 +174,32 @@ export async function parseM3U(content: string, sourceUrl: string): Promise<Play
           'https://amogonetworx-artflix-1-nl.samsung.wurl.tv/playlist.m3u8',
         ];
         for (const fb of hboFallbacks) {
+          if (!alternatives.includes(fb)) {
+            alternatives.push(fb);
+          }
+        }
+      }
+
+      // If channel is AXN (e.g. AXN Crime, AXN White), attach live verified AXN streams
+      if (nameLower.includes('axn') || tvgLower.includes('axn')) {
+        const axnFallbacks = [
+          'http://170.83.16.50/AXN/index.m3u8',
+          'http://170.83.49.66:8083/AXNHD/index.m3u8',
+          'http://5.57.74.130:8000/play/a0at/index.m3u8',
+          'https://a-cdn.klowdtv.com/live3/law_720p/playlist.m3u8',
+        ];
+        for (const fb of axnFallbacks) {
+          if (!alternatives.includes(fb)) {
+            alternatives.push(fb);
+          }
+        }
+      } else if (nameLower.includes('crime') || tvgLower.includes('crime')) {
+        // Crime channels with dead links (like Crime+Investigation) fallback to active crime networks
+        const crimeFallbacks = [
+          'https://a-cdn.klowdtv.com/live3/law_720p/playlist.m3u8',
+          'https://2-fss-2.streamhoster.com/pl_138/201660-1270634-1/playlist.m3u8',
+        ];
+        for (const fb of crimeFallbacks) {
           if (!alternatives.includes(fb)) {
             alternatives.push(fb);
           }

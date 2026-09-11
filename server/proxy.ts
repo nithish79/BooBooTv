@@ -45,10 +45,14 @@ export async function handleProxy(req: Request, res: Response) {
       headers['Range'] = req.headers['range'] as string;
     }
 
+    // Strict 4.5s timeout on upstream connect/response to avoid long buffering freezes
+    const timeoutSignal = AbortSignal.timeout(4500);
+    const combinedSignal = AbortSignal.any([controller.signal, timeoutSignal]);
+
     const upstreamRes = await fetch(targetUrl, {
       method: req.method,
       headers,
-      signal: controller.signal,
+      signal: combinedSignal,
       redirect: 'follow',
     });
 
@@ -157,7 +161,17 @@ export async function handleProxy(req: Request, res: Response) {
       res.end();
     }
   } catch (err: any) {
-    if (err.name === 'AbortError') return;
+    if (err.name === 'AbortError' && controller.signal.aborted) {
+      // Client closed connection
+      return;
+    }
+    if (err.name === 'TimeoutError' || (err.name === 'AbortError' && !controller.signal.aborted)) {
+      console.warn(`[Proxy Timeout] ${targetUrl} (exceeded 4.5s)`);
+      if (!res.headersSent) {
+        res.status(504).json({ error: 'Upstream connection timed out', details: err.message });
+      }
+      return;
+    }
     console.error(`[Proxy Error] ${targetUrl}:`, err.message);
     if (!res.headersSent) {
       res.status(502).json({ error: 'Proxy request failed', details: err.message });
