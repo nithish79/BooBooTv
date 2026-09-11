@@ -5,6 +5,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { fetchPlaylist, DEFAULT_PLAYLIST_URL } from './playlist.js';
 import { handleProxy } from './proxy.js';
+import { resolveYouTubeVideoId } from './resolver.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,6 +42,22 @@ app.get('/api/playlist', async (req, res) => {
 // Streaming Proxy
 app.get('/api/proxy', handleProxy);
 app.head('/api/proxy', handleProxy);
+
+// Stream & Video Resolver (for YouTube live channels, etc.)
+app.get('/api/resolve', async (req, res) => {
+  const url = req.query.url as string;
+  if (!url) {
+    res.status(400).json({ error: 'Missing url query parameter' });
+    return;
+  }
+
+  try {
+    const result = await resolveYouTubeVideoId(url);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to resolve video', details: err.message });
+  }
+});
 
 // Serve client in production
 const clientDist = path.resolve(__dirname, '../client');

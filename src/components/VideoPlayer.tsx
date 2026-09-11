@@ -10,6 +10,12 @@ import {
   ShieldAlert,
   Loader2,
   SkipForward,
+  SkipBack,
+  Youtube,
+  Radio,
+  ExternalLink,
+  Maximize,
+  Minimize,
 } from 'lucide-react';
 
 interface VideoPlayerProps {
@@ -45,7 +51,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [showStats, setShowStats] = useState(false);
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const streamUrl = channel?.url || '';
+  // YouTube live resolution states
+  const [ytVideoId, setYtVideoId] = useState<string | null>(null);
+  const [isResolvingYt, setIsResolvingYt] = useState(false);
+  const [ytError, setYtError] = useState<string | null>(null);
+
+  const streamUrl = channel?.type !== 'youtube' && channel?.type !== 'twitch' ? channel?.url || '' : '';
 
   const {
     videoRef,
@@ -71,6 +82,68 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     lowLatency,
     autoPlay,
   });
+
+  // Resolve YouTube live stream ID
+  useEffect(() => {
+    if (!channel || channel.type !== 'youtube') {
+      setYtVideoId(null);
+      setYtError(null);
+      setIsResolvingYt(false);
+      return;
+    }
+
+    // 1. Direct watch URL (youtube.com/watch?v=...)
+    try {
+      const parsed = new URL(channel.url);
+      const v = parsed.searchParams.get('v');
+      if (v && /^[a-zA-Z0-9_-]{11}$/.test(v)) {
+        setYtVideoId(v);
+        setYtError(null);
+        setIsResolvingYt(false);
+        return;
+      }
+      if (parsed.hostname === 'youtu.be') {
+        const id = parsed.pathname.slice(1);
+        if (/^[a-zA-Z0-9_-]{11}$/.test(id)) {
+          setYtVideoId(id);
+          setYtError(null);
+          setIsResolvingYt(false);
+          return;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    // 2. Live Channel URL (/c/..., /@..., /live, etc.) -> resolve via backend
+    setIsResolvingYt(true);
+    setYtError(null);
+    setYtVideoId(null);
+
+    const controller = new AbortController();
+
+    fetch(`/api/resolve?url=${encodeURIComponent(channel.url)}`, {
+      signal: controller.signal,
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.videoId) {
+          setYtVideoId(data.videoId);
+          setYtError(null);
+        } else {
+          setYtError('No live broadcast is currently running on this YouTube channel.');
+        }
+      })
+      .catch((err) => {
+        if (err.name === 'AbortError') return;
+        setYtError('Failed to resolve live broadcast for this channel.');
+      })
+      .finally(() => {
+        setIsResolvingYt(false);
+      });
+
+    return () => controller.abort();
+  }, [channel]);
 
   // Handle Fullscreen toggle
   const toggleFullscreen = useCallback(() => {
@@ -118,29 +191,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (isPlaying && !error) {
       hideControlsTimer.current = setTimeout(() => {
         setShowControls(false);
-      }, 3000);
+      }, 3500);
     }
   };
 
   const handleMouseLeave = () => {
     if (isPlaying && !error) {
       setShowControls(false);
-    }
-  };
-
-  // Helper for YouTube embeds
-  const getYouTubeEmbedUrl = (url: string) => {
-    try {
-      // Handles /watch?v=ID, /live/ID, youtu.be/ID
-      const parsed = new URL(url);
-      let videoId = parsed.searchParams.get('v');
-      if (!videoId) {
-        const parts = parsed.pathname.split('/');
-        videoId = parts[parts.length - 1];
-      }
-      return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=0&rel=0`;
-    } catch {
-      return url;
     }
   };
 
@@ -204,23 +261,166 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     >
       {/* Embedded YouTube Player */}
       {channel.type === 'youtube' && (
-        <iframe
-          src={getYouTubeEmbedUrl(channel.url)}
-          className="w-full h-full border-0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          title={channel.name}
-        />
+        <div className="w-full h-full flex flex-col relative bg-black">
+          {/* Resolving Spinner */}
+          {isResolvingYt && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-dark-950 z-20">
+              <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4 animate-pulse">
+                <Youtube className="w-8 h-8 text-red-500" />
+              </div>
+              <div className="flex items-center gap-2 mb-2 text-white font-semibold text-sm">
+                <Loader2 className="w-4 h-4 animate-spin text-red-400" />
+                <span>Connecting to YouTube Live...</span>
+              </div>
+              <p className="text-xs text-slate-400">{channel.name}</p>
+            </div>
+          )}
+
+          {/* YouTube Error Card */}
+          {ytError && !isResolvingYt && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-dark-950/95 backdrop-blur-md p-6 z-30 select-none animate-fade-in">
+              <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4">
+                <Youtube className="w-8 h-8 text-red-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-1">YouTube Live Stream Inactive</h3>
+              <p className="text-xs text-slate-400 max-w-sm text-center mb-6">{ytError}</p>
+
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <a
+                  href={channel.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-red-600/20 transition"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open Channel on YouTube
+                </a>
+
+                <button
+                  onClick={onNextChannel}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition"
+                >
+                  <SkipForward className="w-3.5 h-3.5" />
+                  Next Channel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Active YouTube Embed */}
+          {ytVideoId && !isResolvingYt && (
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${ytVideoId}?autoplay=1&mute=0&playsinline=1&rel=0&enablejsapi=1`}
+              className="w-full h-full border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              title={channel.name}
+            />
+          )}
+
+          {/* Floating YouTube Channel HUD Overlay */}
+          <div className="absolute top-3 inset-x-4 flex items-center justify-between pointer-events-none z-30 transition-opacity duration-300 opacity-90 hover:opacity-100">
+            <div className="flex items-center gap-2 bg-dark-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800 pointer-events-auto shadow-lg">
+              <button
+                onClick={onPrevChannel}
+                className="p-1 text-slate-300 hover:text-white rounded hover:bg-slate-800 transition"
+                title="Previous Channel ([)"
+              >
+                <SkipBack className="w-4 h-4" />
+              </button>
+              <span className="w-px h-4 bg-slate-700"></span>
+              <button
+                onClick={onNextChannel}
+                className="p-1 text-slate-300 hover:text-white rounded hover:bg-slate-800 transition"
+                title="Next Channel (])"
+              >
+                <SkipForward className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-2 pl-2">
+                <Youtube className="w-4 h-4 text-red-500" />
+                <span className="text-xs font-semibold text-white max-w-[180px] truncate">
+                  {channel.name}
+                </span>
+                <span className="text-[10px] bg-red-500/20 text-red-400 font-bold px-1.5 py-0.2 rounded uppercase">
+                  YouTube Live
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pointer-events-auto">
+              <a
+                href={channel.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-dark-900/90 backdrop-blur-md border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white transition shadow-lg"
+                title="Open on YouTube website"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-red-400" />
+                <span className="hidden sm:inline">YouTube</span>
+              </a>
+
+              <button
+                onClick={toggleFullscreen}
+                className="p-2 bg-dark-900/90 backdrop-blur-md border border-slate-800 rounded-xl text-slate-300 hover:text-white transition shadow-lg"
+                title="Toggle Fullscreen"
+              >
+                {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Embedded Twitch Player */}
       {channel.type === 'twitch' && (
-        <iframe
-          src={getTwitchEmbedUrl(channel.url)}
-          className="w-full h-full border-0"
-          allowFullScreen
-          title={channel.name}
-        />
+        <div className="w-full h-full flex flex-col relative bg-black">
+          <iframe
+            src={getTwitchEmbedUrl(channel.url)}
+            className="w-full h-full border-0"
+            allowFullScreen
+            title={channel.name}
+          />
+
+          {/* Floating Twitch Channel HUD Overlay */}
+          <div className="absolute top-3 inset-x-4 flex items-center justify-between pointer-events-none z-30 transition-opacity duration-300 opacity-90 hover:opacity-100">
+            <div className="flex items-center gap-2 bg-dark-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800 pointer-events-auto shadow-lg">
+              <button
+                onClick={onPrevChannel}
+                className="p-1 text-slate-300 hover:text-white rounded hover:bg-slate-800 transition"
+                title="Previous Channel ([)"
+              >
+                <SkipBack className="w-4 h-4" />
+              </button>
+              <span className="w-px h-4 bg-slate-700"></span>
+              <button
+                onClick={onNextChannel}
+                className="p-1 text-slate-300 hover:text-white rounded hover:bg-slate-800 transition"
+                title="Next Channel (])"
+              >
+                <SkipForward className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-2 pl-2">
+                <Radio className="w-4 h-4 text-purple-400" />
+                <span className="text-xs font-semibold text-white max-w-[180px] truncate">
+                  {channel.name}
+                </span>
+                <span className="text-[10px] bg-purple-500/20 text-purple-400 font-bold px-1.5 py-0.2 rounded uppercase">
+                  Twitch Live
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pointer-events-auto">
+              <button
+                onClick={toggleFullscreen}
+                className="p-2 bg-dark-900/90 backdrop-blur-md border border-slate-800 rounded-xl text-slate-300 hover:text-white transition shadow-lg"
+                title="Toggle Fullscreen"
+              >
+                {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Standard HLS / HTML5 Video Stream */}
