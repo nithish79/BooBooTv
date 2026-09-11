@@ -14,6 +14,17 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || (process.env.NODE_ENV === 'production' ? 3000 : 3001);
 
+process.on('uncaughtException', (err: any) => {
+  if (err.name === 'AbortError' || err.code === 'ECONNRESET' || err.code === 'ERR_STREAM_PREMATURE_CLOSE') {
+    return;
+  }
+  console.warn('[Uncaught Server Warning]:', err.message);
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  console.warn('[Unhandled Rejection]:', reason?.message || reason);
+});
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 

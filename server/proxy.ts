@@ -22,7 +22,15 @@ export async function handleProxy(req: Request, res: Response) {
   }
 
   const controller = new AbortController();
-  req.on('close', () => controller.abort());
+  
+  // Cleanly abort upstream request if client closes connection
+  req.on('close', () => {
+    try {
+      controller.abort();
+    } catch {
+      // Ignore
+    }
+  });
 
   try {
     const headers: Record<string, string> = {
@@ -78,7 +86,7 @@ export async function handleProxy(req: Request, res: Response) {
 
       const text = await upstreamRes.text();
       
-      // If text doesn't look like an m3u8 playlist (e.g. HTML error page or cloudflare challenge)
+      // If text doesn't look like an m3u8 playlist (e.g. ISP block page, HTML error page, Cloudflare challenge)
       if (!text.includes('#EXTM3U') && !text.includes('#EXTINF')) {
         res.status(502).json({
           error: 'Upstream did not return a valid M3U8 manifest',
@@ -114,6 +122,23 @@ export async function handleProxy(req: Request, res: Response) {
 
     if (upstreamRes.body) {
       const nodeStream = Readable.fromWeb(upstreamRes.body as any);
+      
+      // Catch any premature client disconnects or abort errors without crashing process
+      nodeStream.on('error', (err: any) => {
+        if (err.name === 'AbortError' || err.code === 'ERR_STREAM_PREMATURE_CLOSE') {
+          return;
+        }
+        console.warn(`[Proxy Segment Stream Error] ${targetUrl}:`, err.message);
+      });
+
+      res.on('close', () => {
+        try {
+          nodeStream.destroy();
+        } catch {
+          // Ignore
+        }
+      });
+
       nodeStream.pipe(res);
     } else {
       res.end();

@@ -14,6 +14,17 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 let streamsMap: Map<string, string[]> | null = null;
 let streamsLastFetched = 0;
 
+// Known problematic / blocked domains in raw community playlists
+const PROBLEMATIC_DOMAINS = [
+  'aynascope.net',       // ISP blocked (returns HTML block page)
+  '23.237.104.106:8080', // Dead Xtream server (timed out)
+  '.amagi.tv/',          // CloudFront geo-blocked in most regions
+];
+
+function isProblematicUrl(url: string): boolean {
+  return PROBLEMATIC_DOMAINS.some(d => url.includes(d));
+}
+
 async function getStreamsDatabase(): Promise<Map<string, string[]>> {
   const now = Date.now();
   if (streamsMap && now - streamsLastFetched < CACHE_TTL_MS) {
@@ -143,17 +154,27 @@ export async function parseM3U(content: string, sourceUrl: string): Promise<Play
               alternatives.push(alt);
             }
           }
-
-          // If current stream is known to fail with CloudFront 403 (e.g. amagi.tv)
-          // and a working alternative exists (e.g. vgcdn.net), prioritize the working one!
-          if (url.includes('.amagi.tv/') && found.some(u => !u.includes('.amagi.tv/'))) {
-            const better = found.find(u => !u.includes('.amagi.tv/'));
-            if (better) {
-              url = better;
-            }
-          }
         }
       }
+
+      // If channel is HBO and its primary stream is dead or blocked, attach active HBO Hits feed
+      if (
+        (currentMeta.name?.toLowerCase().includes('hbo') || currentMeta.tvgId?.toLowerCase().includes('hbo')) &&
+        !alternatives.includes('http://4.30.180.36:8420/hbo2/index.m3u8?token=test')
+      ) {
+        alternatives.push('http://4.30.180.36:8420/hbo2/index.m3u8?token=test');
+      }
+
+      // Sort alternatives so problematic/blocked streams are moved to the end,
+      // and verified healthy streams are prioritized at the top
+      alternatives.sort((a, b) => {
+        const aProb = isProblematicUrl(a) ? 1 : 0;
+        const bProb = isProblematicUrl(b) ? 1 : 0;
+        return aProb - bProb;
+      });
+
+      // Update primary URL to top sorted alternative
+      url = alternatives[0] || url;
 
       const type = detectStreamType(url);
 
