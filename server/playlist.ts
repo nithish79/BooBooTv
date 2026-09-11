@@ -10,6 +10,42 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+// Global streams database cache (from iptv-org/api/streams.json)
+let streamsMap: Map<string, string[]> | null = null;
+let streamsLastFetched = 0;
+
+async function getStreamsDatabase(): Promise<Map<string, string[]>> {
+  const now = Date.now();
+  if (streamsMap && now - streamsLastFetched < CACHE_TTL_MS) {
+    return streamsMap;
+  }
+
+  const map = new Map<string, string[]>();
+  try {
+    const res = await fetch('https://iptv-org.github.io/api/streams.json', {
+      headers: { 'User-Agent': 'OpenIPTV/2.0' },
+    });
+    if (res.ok) {
+      const list = await res.json();
+      for (const item of list) {
+        if (!item.channel || !item.url) continue;
+        const key = item.channel.toLowerCase().trim();
+        const urls = map.get(key) || [];
+        if (!urls.includes(item.url)) {
+          urls.push(item.url);
+        }
+        map.set(key, urls);
+      }
+      streamsMap = map;
+      streamsLastFetched = now;
+    }
+  } catch (err) {
+    console.warn('[Playlist] Failed to fetch streams.json database:', err);
+  }
+
+  return map;
+}
+
 function detectStreamType(url: string): Channel['type'] {
   const lower = url.toLowerCase();
   if (lower.includes('youtube.com/') || lower.includes('youtu.be/')) {
@@ -24,7 +60,7 @@ function detectStreamType(url: string): Channel['type'] {
   if (lower.endsWith('.mp4') || lower.includes('.mp4?')) {
     return 'mp4';
   }
-  return 'hls'; // default fallback for IPTV streams
+  return 'hls';
 }
 
 function extractQuality(rawName: string): { cleanName: string; quality?: string } {
@@ -46,10 +82,12 @@ function extractCountryFromTvgId(tvgId?: string): string {
   return '';
 }
 
-export function parseM3U(content: string, sourceUrl: string): PlaylistResponse {
+export async function parseM3U(content: string, sourceUrl: string): Promise<PlaylistResponse> {
   const lines = content.split(/\r?\n/);
   const channels: Channel[] = [];
   const groupCounts = new Map<string, number>();
+
+  const db = await getStreamsDatabase();
 
   let currentMeta: Partial<Channel> & { tvgId?: string } | null = null;
   let counter = 0;
@@ -92,7 +130,31 @@ export function parseM3U(content: string, sourceUrl: string): PlaylistResponse {
         tvgId,
       };
     } else if (!line.startsWith('#') && currentMeta) {
-      const url = line;
+      let url = line;
+      let alternatives: string[] = [url];
+
+      // Lookup alternatives from iptv-org streams database
+      if (currentMeta.tvgId) {
+        const baseKey = currentMeta.tvgId.split('@')[0].toLowerCase().trim();
+        const found = db.get(baseKey);
+        if (found && found.length > 0) {
+          for (const alt of found) {
+            if (!alternatives.includes(alt)) {
+              alternatives.push(alt);
+            }
+          }
+
+          // If current stream is known to fail with CloudFront 403 (e.g. amagi.tv)
+          // and a working alternative exists (e.g. vgcdn.net), prioritize the working one!
+          if (url.includes('.amagi.tv/') && found.some(u => !u.includes('.amagi.tv/'))) {
+            const better = found.find(u => !u.includes('.amagi.tv/'));
+            if (better) {
+              url = better;
+            }
+          }
+        }
+      }
+
       const type = detectStreamType(url);
 
       const channel: Channel = {
@@ -104,6 +166,7 @@ export function parseM3U(content: string, sourceUrl: string): PlaylistResponse {
         url,
         type,
         quality: currentMeta.quality,
+        alternatives: alternatives.length > 1 ? alternatives : undefined,
       };
 
       channels.push(channel);
@@ -145,7 +208,7 @@ export async function fetchPlaylist(url: string = DEFAULT_PLAYLIST_URL, forceRel
   }
 
   const content = await res.text();
-  const parsed = parseM3U(content, url);
+  const parsed = await parseM3U(content, url);
 
   cache.set(url, {
     data: parsed,

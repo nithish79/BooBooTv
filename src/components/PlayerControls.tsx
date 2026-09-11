@@ -14,6 +14,7 @@ import {
   Sliders,
   Sparkles,
   Tv,
+  Server,
 } from 'lucide-react';
 import { AspectRatio, Channel, QualityLevel } from '../types';
 
@@ -29,6 +30,9 @@ interface PlayerControlsProps {
   currentLevel: number;
   isFullscreen: boolean;
   showStats: boolean;
+  sources?: string[];
+  currentSourceIndex?: number;
+  onSwitchSource?: (idx: number) => void;
   onTogglePlay: () => void;
   onToggleMute: () => void;
   onChangeVolume: (vol: number) => void;
@@ -54,6 +58,9 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   currentLevel,
   isFullscreen,
   showStats,
+  sources = [],
+  currentSourceIndex = 0,
+  onSwitchSource,
   onTogglePlay,
   onToggleMute,
   onChangeVolume,
@@ -69,6 +76,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [showAspectMenu, setShowAspectMenu] = useState(false);
+  const [showSourcesMenu, setShowSourcesMenu] = useState(false);
 
   const getVolumeIcon = () => {
     if (isMuted || volume === 0) return <VolumeX className="w-5 h-5" />;
@@ -178,6 +186,11 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                       {channel.country}
                     </span>
                   )}
+                  {channel.quality && (
+                    <span className="text-[9px] bg-brand-500/20 text-brand-300 font-bold px-1.5 py-0.2 rounded font-mono">
+                      {channel.quality}
+                    </span>
+                  )}
                 </div>
                 <span className="text-[11px] text-slate-400 truncate max-w-[200px]">
                   {channel.group}
@@ -187,8 +200,47 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
           )}
         </div>
 
-        {/* Right: Stream Settings, Ratio, PiP, Fullscreen */}
+        {/* Right: Stream Settings, Sources, Ratio, PiP, Fullscreen */}
         <div className="flex items-center gap-1.5">
+          {/* Multi-Source Switcher */}
+          {sources.length > 1 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowSourcesMenu(!showSourcesMenu)}
+                className="px-2.5 py-1.5 text-xs font-semibold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-lg border border-emerald-500/30 transition flex items-center gap-1.5"
+                title="Switch Alternative Stream Server"
+              >
+                <Server className="w-3.5 h-3.5" />
+                <span>Source {currentSourceIndex + 1}/{sources.length}</span>
+              </button>
+
+              {showSourcesMenu && (
+                <div className="absolute bottom-full right-0 mb-2 bg-dark-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-1 shadow-2xl min-w-[140px] z-50 animate-fade-in">
+                  <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Available Sources
+                  </div>
+                  {sources.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        onSwitchSource?.(idx);
+                        setShowSourcesMenu(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-xs rounded-lg transition flex items-center justify-between ${
+                        currentSourceIndex === idx
+                          ? 'bg-emerald-500/20 text-emerald-400 font-semibold'
+                          : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>Server {idx + 1}</span>
+                      {currentSourceIndex === idx && <span className="text-[10px]">● Active</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Quality Switcher */}
           {qualityLevels.length > 0 && (
             <div className="relative">

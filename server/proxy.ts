@@ -26,8 +26,9 @@ export async function handleProxy(req: Request, res: Response) {
 
   try {
     const headers: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       'Accept': req.headers['accept'] || '*/*',
+      'Accept-Language': 'en-US,en;q=0.9',
       'Referer': `${parsedTarget.protocol}//${parsedTarget.host}/`,
       'Origin': `${parsedTarget.protocol}//${parsedTarget.host}`,
     };
@@ -65,12 +66,25 @@ export async function handleProxy(req: Request, res: Response) {
     const finalUrl = upstreamRes.url || targetUrl;
 
     if (isM3U8) {
+      // If upstream failed with 4xx or 5xx error
+      if (!upstreamRes.ok) {
+        res.status(upstreamRes.status).json({
+          error: 'Upstream manifest error',
+          status: upstreamRes.status,
+          targetUrl,
+        });
+        return;
+      }
+
       const text = await upstreamRes.text();
       
-      // If text doesn't look like an m3u8 playlist, maybe it's binary or error
+      // If text doesn't look like an m3u8 playlist (e.g. HTML error page or cloudflare challenge)
       if (!text.includes('#EXTM3U') && !text.includes('#EXTINF')) {
-        res.setHeader('Content-Type', contentType || 'text/plain');
-        res.status(upstreamRes.status).send(text);
+        res.status(502).json({
+          error: 'Upstream did not return a valid M3U8 manifest',
+          status: upstreamRes.status,
+          preview: text.slice(0, 150),
+        });
         return;
       }
 

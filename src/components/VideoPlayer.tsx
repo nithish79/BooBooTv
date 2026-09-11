@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Maximize,
   Minimize,
+  Server,
 } from 'lucide-react';
 
 interface VideoPlayerProps {
@@ -70,6 +71,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     stats,
     activeUrl,
     isUsingProxy,
+    sources,
+    currentSourceIndex,
+    switchSource,
     togglePlay,
     toggleMute,
     changeVolume,
@@ -77,6 +81,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     retryStream,
   } = useHlsPlayer({
     streamUrl,
+    alternatives: channel?.alternatives,
     streamingMode,
     audioBoost,
     lowLatency,
@@ -453,6 +458,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               <p className="text-xs text-slate-400 max-w-sm text-center mb-6">{error}</p>
 
               <div className="flex flex-wrap items-center justify-center gap-3">
+                {/* Alternative Source Switcher on Error */}
+                {sources.length > 1 && (
+                  <button
+                    onClick={() => switchSource((currentSourceIndex + 1) % sources.length)}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-600/20 transition"
+                  >
+                    <Server className="w-3.5 h-3.5" />
+                    Try Source {((currentSourceIndex + 1) % sources.length) + 1} of {sources.length}
+                  </button>
+                )}
+
                 <button
                   onClick={() => retryStream(false)}
                   className="flex items-center gap-2 px-4 py-2 bg-dark-800 hover:bg-dark-700 text-white text-xs font-semibold rounded-xl border border-slate-700 transition"
@@ -511,6 +527,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               currentLevel={currentLevel}
               isFullscreen={isFullscreen}
               showStats={showStats}
+              sources={sources}
+              currentSourceIndex={currentSourceIndex}
+              onSwitchSource={switchSource}
               onTogglePlay={togglePlay}
               onToggleMute={toggleMute}
               onChangeVolume={changeVolume}

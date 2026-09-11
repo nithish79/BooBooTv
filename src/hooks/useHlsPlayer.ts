@@ -4,6 +4,7 @@ import { QualityLevel, StreamStats, StreamingMode } from '../types';
 
 interface UseHlsPlayerProps {
   streamUrl: string;
+  alternatives?: string[];
   streamingMode: StreamingMode;
   audioBoost: boolean;
   lowLatency: boolean;
@@ -12,6 +13,7 @@ interface UseHlsPlayerProps {
 
 export function useHlsPlayer({
   streamUrl,
+  alternatives = [],
   streamingMode,
   audioBoost,
   lowLatency,
@@ -34,6 +36,12 @@ export function useHlsPlayer({
   const [currentLevel, setCurrentLevel] = useState<number>(-1); // -1 is Auto
   const [activeUrl, setActiveUrl] = useState<string>('');
   const [isUsingProxy, setIsUsingProxy] = useState(false);
+
+  // Active alternative stream index
+  const [sourceIndex, setSourceIndex] = useState(0);
+
+  // Combined sources list
+  const allSources = alternatives.length > 0 ? alternatives : (streamUrl ? [streamUrl] : []);
 
   const [stats, setStats] = useState<StreamStats>({
     resolution: 'Loading...',
@@ -91,19 +99,24 @@ export function useHlsPlayer({
       if (audioCtxRef.current.state === 'suspended') {
         audioCtxRef.current.resume();
       }
-      // If audioBoost is on and volume is at 100%, allow boost up to 2.0x
       gainNodeRef.current.gain.value = audioBoost && volume > 0.9 ? 1.8 : 1.0;
     }
   }, [volume, isMuted, audioBoost]);
 
+  // Reset source index on streamUrl change
+  useEffect(() => {
+    setSourceIndex(0);
+  }, [streamUrl]);
+
   // Main HLS Loader
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !streamUrl) return;
+    const currentTargetUrl = allSources[sourceIndex] || streamUrl;
+    if (!video || !currentTargetUrl) return;
 
     let retryCount = 0;
     let fallbackToProxy = streamingMode === 'proxy';
-    let urlToPlay = getPlayableUrl(streamUrl, fallbackToProxy);
+    let urlToPlay = getPlayableUrl(currentTargetUrl, fallbackToProxy);
 
     setIsUsingProxy(fallbackToProxy);
     setActiveUrl(urlToPlay);
@@ -121,13 +134,23 @@ export function useHlsPlayer({
         const hls = new Hls({
           enableWorker: true,
           lowLatencyMode: lowLatency,
-          backBufferLength: 60,
-          maxBufferLength: 30,
-          maxMaxBufferLength: 60,
-          manifestLoadingTimeOut: 15000,
-          manifestLoadingMaxRetry: 3,
-          levelLoadingTimeOut: 15000,
-          fragLoadingTimeOut: 20000,
+          // Robust buffer settings to eliminate buffering and stalls on IPTV streams
+          liveSyncDurationCount: lowLatency ? 2 : 3,
+          liveMaxLatencyDurationCount: lowLatency ? 5 : 10,
+          maxBufferLength: 60,
+          maxMaxBufferLength: 120,
+          maxBufferSize: 60 * 1000 * 1000,
+          maxBufferHole: 0.5,
+          highBufferWatchdogPeriod: 2,
+          nudgeOffset: 0.2,
+          nudgeMaxRetry: 10,
+          manifestLoadingTimeOut: 20000,
+          manifestLoadingMaxRetry: 4,
+          levelLoadingTimeOut: 20000,
+          fragLoadingTimeOut: 30000,
+          fragLoadingMaxRetry: 6,
+          fragLoadingRetryDelay: 500,
+          fragLoadingMaxRetryTimeout: 64000,
         });
 
         hlsRef.current = hls;
@@ -152,7 +175,6 @@ export function useHlsPlayer({
 
           if (autoPlay) {
             video.play().catch(() => {
-              // Browser autoplay policy might require mute
               video.muted = true;
               setIsMuted(true);
               video.play().catch(console.warn);
@@ -164,39 +186,60 @@ export function useHlsPlayer({
           setCurrentLevel(data.level);
         });
 
+        hls.on(Hls.Events.BUFFER_STALLED_ERROR, () => {
+          console.info('[HLS] Buffer stalled, nudging playback...');
+          if (video && video.buffered.length > 0) {
+            video.currentTime += 0.15;
+          }
+        });
+
         hls.on(Hls.Events.ERROR, (_, data) => {
           console.warn('[HLS Event Error]:', data.type, data.details, data.fatal);
 
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                // If direct stream failed and mode is auto, try proxy fallback
+                // Step 1: If direct stream failed and mode is auto, try proxy fallback
                 if (streamingMode === 'auto' && !fallbackToProxy) {
-                  console.info('[HLS] Direct stream network/CORS error. Switching to Proxy mode...');
+                  console.info('[HLS] Direct stream error. Switching to Proxy mode...');
                   fallbackToProxy = true;
                   setIsUsingProxy(true);
-                  const proxyUrl = getPlayableUrl(streamUrl, true);
+                  const proxyUrl = getPlayableUrl(currentTargetUrl, true);
                   setActiveUrl(proxyUrl);
                   hls.destroy();
                   initHls(proxyUrl);
                   return;
                 }
 
+                // Step 2: If alternative stream available, failover to next source
+                if (allSources.length > 1 && sourceIndex < allSources.length - 1) {
+                  console.info(`[HLS] Source ${sourceIndex + 1} failed. Failing over to alternative source ${sourceIndex + 2}...`);
+                  setSourceIndex((prev) => prev + 1);
+                  return;
+                }
+
                 if (retryCount < 2) {
                   retryCount++;
-                  console.info(`[HLS] Network error, retrying (${retryCount}/2)...`);
+                  console.info(`[HLS] Retrying stream (${retryCount}/2)...`);
                   hls.startLoad();
                 } else {
-                  setError('Stream unavailable or geo-blocked. Try switching to Proxy mode in Settings.');
+                  setError('Stream unavailable or geo-blocked. Try switching sources or proxy mode.');
                   setIsBuffering(false);
                   hls.destroy();
                 }
                 break;
+
               case Hls.ErrorTypes.MEDIA_ERROR:
-                console.info('[HLS] Media error, attempting recovery...');
+                console.info('[HLS] Media decode error, attempting recovery...');
                 hls.recoverMediaError();
                 break;
+
               default:
+                // If other sources exist, failover
+                if (allSources.length > 1 && sourceIndex < allSources.length - 1) {
+                  setSourceIndex((prev) => prev + 1);
+                  return;
+                }
                 setError('Playback error occurred.');
                 setIsBuffering(false);
                 hls.destroy();
@@ -227,7 +270,7 @@ export function useHlsPlayer({
         hlsRef.current = null;
       }
     };
-  }, [streamUrl, streamingMode, lowLatency, autoPlay, getPlayableUrl]);
+  }, [streamUrl, sourceIndex, streamingMode, lowLatency, autoPlay, getPlayableUrl]);
 
   // Video event listeners
   useEffect(() => {
@@ -256,6 +299,49 @@ export function useHlsPlayer({
       video.removeEventListener('playing', onPlaying);
       video.removeEventListener('volumechange', onVolumeChange);
     };
+  }, []);
+
+  // Anti-stall watchdog: auto-nudges playback if video freezes on a tiny timestamp gap
+  useEffect(() => {
+    let lastTime = -1;
+    let stallCount = 0;
+
+    const watchdog = setInterval(() => {
+      const video = videoRef.current;
+      const hls = hlsRef.current;
+      if (!video || !hls || video.paused || video.ended || video.readyState < 2) {
+        lastTime = -1;
+        stallCount = 0;
+        return;
+      }
+
+      if (Math.abs(video.currentTime - lastTime) < 0.05) {
+        stallCount++;
+        // If frozen for 2.5 seconds
+        if (stallCount >= 2) {
+          console.warn('[HLS Anti-Stall] Detected freeze at', video.currentTime, '- nudging forward...');
+          stallCount = 0;
+
+          if (video.buffered.length > 0) {
+            const bufferEnd = video.buffered.end(video.buffered.length - 1);
+            if (bufferEnd > video.currentTime + 0.2) {
+              video.currentTime += 0.2;
+              return;
+            }
+          }
+
+          if (hls.liveSyncPosition) {
+            video.currentTime = hls.liveSyncPosition;
+          }
+          hls.startLoad();
+        }
+      } else {
+        stallCount = 0;
+        lastTime = video.currentTime;
+      }
+    }, 1200);
+
+    return () => clearInterval(watchdog);
   }, []);
 
   // Real-time Stats polling (every 1 sec)
@@ -347,8 +433,17 @@ export function useHlsPlayer({
     }
   }, []);
 
+  const switchSource = useCallback((index: number) => {
+    if (index >= 0 && index < allSources.length) {
+      setSourceIndex(index);
+    }
+  }, [allSources.length]);
+
   const retryStream = useCallback((useProxy = false) => {
-    if (!videoRef.current || !streamUrl) return;
+    if (!videoRef.current) return;
+    const target = allSources[sourceIndex] || streamUrl;
+    if (!target) return;
+
     setError(null);
     setIsBuffering(true);
     if (hlsRef.current) {
@@ -356,7 +451,7 @@ export function useHlsPlayer({
       hlsRef.current = null;
     }
 
-    const url = getPlayableUrl(streamUrl, useProxy);
+    const url = getPlayableUrl(target, useProxy);
     setIsUsingProxy(useProxy);
     setActiveUrl(url);
 
@@ -364,6 +459,8 @@ export function useHlsPlayer({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: lowLatency,
+        maxBufferLength: 60,
+        maxMaxBufferLength: 120,
       });
       hlsRef.current = hls;
       hls.attachMedia(videoRef.current);
@@ -381,7 +478,7 @@ export function useHlsPlayer({
         }
       });
     }
-  }, [streamUrl, lowLatency, getPlayableUrl]);
+  }, [allSources, sourceIndex, streamUrl, lowLatency, getPlayableUrl]);
 
   return {
     videoRef,
@@ -395,6 +492,9 @@ export function useHlsPlayer({
     stats,
     activeUrl,
     isUsingProxy,
+    sources: allSources,
+    currentSourceIndex: sourceIndex,
+    switchSource,
     togglePlay,
     toggleMute,
     changeVolume,

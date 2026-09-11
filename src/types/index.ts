@@ -9,6 +9,7 @@ export interface Channel {
   url: string;
   type: StreamType;
   quality?: string;
+  alternatives?: string[];
 }
 
 export interface GroupInfo {

@@ -7,6 +7,7 @@ export interface Channel {
   url: string;
   type: 'hls' | 'youtube' | 'twitch' | 'mp4' | 'other';
   quality?: string;
+  alternatives?: string[];
 }
 
 export interface PlaylistResponse {
