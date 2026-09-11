@@ -157,12 +157,22 @@ export async function parseM3U(content: string, sourceUrl: string): Promise<Play
         }
       }
 
-      // If channel is HBO and its primary stream is dead or blocked, attach active HBO Hits feed
+      // If channel is HBO, attach alternative working feeds (including high-speed CloudFront movie feeds)
       if (
-        (currentMeta.name?.toLowerCase().includes('hbo') || currentMeta.tvgId?.toLowerCase().includes('hbo')) &&
-        !alternatives.includes('http://4.30.180.36:8420/hbo2/index.m3u8?token=test')
+        currentMeta.name?.toLowerCase().includes('hbo') ||
+        currentMeta.tvgId?.toLowerCase().includes('hbo')
       ) {
-        alternatives.push('http://4.30.180.36:8420/hbo2/index.m3u8?token=test');
+        const hboFallbacks = [
+          'http://4.30.180.36:8420/hbo2/index.m3u8?token=test',
+          'https://d6dg3ebeih71x.cloudfront.net/Gravitas_Movies.m3u8',
+          'https://d1j2u714xk898n.cloudfront.net/scheduler/scheduleMaster/145.m3u8',
+          'https://amogonetworx-artflix-1-nl.samsung.wurl.tv/playlist.m3u8',
+        ];
+        for (const fb of hboFallbacks) {
+          if (!alternatives.includes(fb)) {
+            alternatives.push(fb);
+          }
+        }
       }
 
       // Sort alternatives so problematic/blocked streams are moved to the end,

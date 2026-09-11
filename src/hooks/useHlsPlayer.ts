@@ -134,23 +134,25 @@ export function useHlsPlayer({
         const hls = new Hls({
           enableWorker: true,
           lowLatencyMode: lowLatency,
-          // Robust buffer settings to eliminate buffering and stalls on IPTV streams
+          // Robust buffer settings tuned to avoid rate-limiting and buffer starvation
           liveSyncDurationCount: lowLatency ? 2 : 3,
-          liveMaxLatencyDurationCount: lowLatency ? 5 : 10,
-          maxBufferLength: 60,
-          maxMaxBufferLength: 120,
-          maxBufferSize: 60 * 1000 * 1000,
+          liveMaxLatencyDurationCount: lowLatency ? 5 : 8,
+          maxBufferLength: 20,
+          maxMaxBufferLength: 40,
+          maxBufferSize: 30 * 1000 * 1000,
           maxBufferHole: 0.5,
           highBufferWatchdogPeriod: 2,
           nudgeOffset: 0.2,
-          nudgeMaxRetry: 10,
-          manifestLoadingTimeOut: 20000,
-          manifestLoadingMaxRetry: 4,
-          levelLoadingTimeOut: 20000,
-          fragLoadingTimeOut: 30000,
-          fragLoadingMaxRetry: 6,
+          nudgeMaxRetry: 5,
+          manifestLoadingTimeOut: 8000,
+          manifestLoadingMaxRetry: 2,
+          manifestLoadingRetryDelay: 500,
+          levelLoadingTimeOut: 8000,
+          levelLoadingMaxRetry: 2,
+          fragLoadingTimeOut: 8000,
+          fragLoadingMaxRetry: 2,
           fragLoadingRetryDelay: 500,
-          fragLoadingMaxRetryTimeout: 64000,
+          fragLoadingMaxRetryTimeout: 12000,
         });
 
         hlsRef.current = hls;
@@ -159,6 +161,8 @@ export function useHlsPlayer({
         hls.on(Hls.Events.MEDIA_ATTACHED, () => {
           hls.loadSource(targetUrl);
         });
+
+        let consecutiveFragErrors = 0;
 
         hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
           setIsBuffering(false);
@@ -186,6 +190,11 @@ export function useHlsPlayer({
           setCurrentLevel(data.level);
         });
 
+        hls.on(Hls.Events.FRAG_LOADED, () => {
+          consecutiveFragErrors = 0;
+          setIsBuffering(false);
+        });
+
         hls.on(Hls.Events.BUFFER_STALLED_ERROR, () => {
           console.info('[HLS] Buffer stalled, nudging playback...');
           if (video && video.buffered.length > 0) {
@@ -195,6 +204,30 @@ export function useHlsPlayer({
 
         hls.on(Hls.Events.ERROR, (_, data) => {
           console.warn('[HLS Event Error]:', data.type, data.details, data.fatal);
+
+          // Track fragment loading errors even when non-fatal (upstream cutoff / 403 / anti-leech)
+          if (
+            data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR ||
+            data.details === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT
+          ) {
+            consecutiveFragErrors++;
+            console.warn(`[HLS] Fragment load failure #${consecutiveFragErrors}`);
+
+            // If 2 consecutive fragments fail, upstream server has throttled or died
+            if (consecutiveFragErrors >= 2) {
+              consecutiveFragErrors = 0;
+              if (allSources.length > 1 && sourceIndex < allSources.length - 1) {
+                console.info(`[HLS] Upstream stream halted. Fast failover to Source ${sourceIndex + 2}...`);
+                setSourceIndex((prev) => prev + 1);
+                return;
+              } else {
+                setIsBuffering(false);
+                setError('Stream throttled or restricted by upstream server (rate-limit / ISP block). Try another source or movie channel.');
+                hls.stopLoad();
+                return;
+              }
+            }
+          }
 
           if (data.fatal) {
             switch (data.type) {
@@ -218,9 +251,9 @@ export function useHlsPlayer({
                   return;
                 }
 
-                if (retryCount < 2) {
+                if (retryCount < 1) {
                   retryCount++;
-                  console.info(`[HLS] Retrying stream (${retryCount}/2)...`);
+                  console.info(`[HLS] Retrying stream (${retryCount}/1)...`);
                   hls.startLoad();
                 } else {
                   setError('Stream unavailable or geo-blocked. Try switching sources or proxy mode.');
@@ -317,15 +350,25 @@ export function useHlsPlayer({
 
       if (Math.abs(video.currentTime - lastTime) < 0.05) {
         stallCount++;
-        // If frozen for 2.5 seconds
+        // If frozen for 2.4 seconds
         if (stallCount >= 2) {
-          console.warn('[HLS Anti-Stall] Detected freeze at', video.currentTime, '- nudging forward...');
-          stallCount = 0;
+          console.warn('[HLS Anti-Stall] Detected freeze at', video.currentTime, '- checking buffer...');
 
           if (video.buffered.length > 0) {
             const bufferEnd = video.buffered.end(video.buffered.length - 1);
             if (bufferEnd > video.currentTime + 0.2) {
               video.currentTime += 0.2;
+              stallCount = 0;
+              return;
+            }
+          }
+
+          // If frozen with zero buffer for 4+ ticks (~4.8 seconds), auto-failover to next source
+          if (stallCount >= 4) {
+            stallCount = 0;
+            if (allSources.length > 1 && sourceIndex < allSources.length - 1) {
+              console.warn('[HLS Anti-Stall] Stream starved of data. Auto-switching to next source...');
+              setSourceIndex((prev) => prev + 1);
               return;
             }
           }
@@ -342,7 +385,7 @@ export function useHlsPlayer({
     }, 1200);
 
     return () => clearInterval(watchdog);
-  }, []);
+  }, [allSources, sourceIndex]);
 
   // Real-time Stats polling (every 1 sec)
   useEffect(() => {

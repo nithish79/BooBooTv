@@ -104,6 +104,19 @@ export async function handleProxy(req: Request, res: Response) {
     }
 
     // Binary / TS Segment streaming
+    if (!upstreamRes.ok || contentType.includes('text/html')) {
+      const denyReason = upstreamRes.headers.get('x-deny-reason') || '';
+      res.setHeader('X-Stream-Denied', 'true');
+      if (denyReason) res.setHeader('X-Deny-Reason', denyReason);
+      res.status(upstreamRes.status >= 400 ? upstreamRes.status : 502).json({
+        error: 'Segment unavailable or denied by upstream',
+        status: upstreamRes.status,
+        denyReason,
+        targetUrl,
+      });
+      return;
+    }
+
     res.status(upstreamRes.status);
 
     // Forward relevant headers

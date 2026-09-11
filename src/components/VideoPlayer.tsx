@@ -454,8 +454,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4">
                 <AlertTriangle className="w-8 h-8 text-red-400" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-1">Stream Playback Failed</h3>
-              <p className="text-xs text-slate-400 max-w-sm text-center mb-6">{error}</p>
+              <h3 className="text-lg font-bold text-white mb-1">Stream Playback Interrupted</h3>
+              <p className="text-xs text-slate-400 max-w-md text-center mb-4">{error}</p>
+
+              {channel.name.toLowerCase().includes('hbo') && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 max-w-md text-center mb-5">
+                  <span className="text-[11px] text-amber-300 leading-relaxed font-medium">
+                    💡 <strong>Notice:</strong> HBO is a proprietary cable/subscription network. Public community streams frequently suffer from upstream anti-leech rate limits (Flussonic protection) or local ISP censorship. Use <strong>Try Source</strong> below to switch to uninterrupted movie feeds.
+                  </span>
+                </div>
+              )}
 
               <div className="flex flex-wrap items-center justify-center gap-3">
                 {/* Alternative Source Switcher on Error */}
