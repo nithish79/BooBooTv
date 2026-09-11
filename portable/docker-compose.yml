@@ -1,0 +1,12 @@
+services:
+  open-iptv:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: open-iptv-portable
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=production

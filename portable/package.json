@@ -1,0 +1,14 @@
+{
+  "name": "open-iptv-portable",
+  "version": "1.0.0",
+  "description": "Portable OpenIPTV Player - Standalone runtime",
+  "type": "module",
+  "main": "dist/server/index.js",
+  "scripts": {
+    "start": "node dist/server/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}

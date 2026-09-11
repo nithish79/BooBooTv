@@ -17,8 +17,8 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# Release & Binary artifacts
+release/
+portable/bin/*.exe
+portable/node_modules/
+portable/dist/
