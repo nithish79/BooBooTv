@@ -59,13 +59,21 @@ export function useKeyboardShortcuts(actions: KeyboardActions, enabled = true) {
           break;
         case '[':
         case 'pageup':
+        case 'channeldown':
           e.preventDefault();
           actions.onPrevChannel();
           break;
         case ']':
         case 'pagedown':
+        case 'channelup':
           e.preventDefault();
           actions.onNextChannel();
+          break;
+        case 'mediaplaypause':
+        case 'mediaplay':
+        case 'mediapause':
+          e.preventDefault();
+          actions.onTogglePlay();
           break;
         case 's':
           e.preventDefault();

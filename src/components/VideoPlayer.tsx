@@ -473,6 +473,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 </div>
               )}
 
+              {(channel.name.toLowerCase().includes('star sports') ||
+                channel.name.toLowerCase().includes('sony sports') ||
+                channel.name.toLowerCase().includes('sony ten') ||
+                channel.name.toLowerCase().includes('ten sports')) && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 max-w-md text-center mb-5">
+                  <span className="text-[11px] text-amber-300 leading-relaxed font-medium">
+                    ⚠️ <strong>Premium Broadcaster Notice:</strong> Star Sports and Sony Sports Ten are premium DRM-encrypted subscription networks (Hotstar / SonyLIV). Public community rebroadcasts frequently expire or get blocked upstream. Free-to-air sports like <strong>DD Sports</strong> remain active in the channel list.
+                  </span>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center justify-center gap-3">
                 {/* Alternative Source Switcher on Error */}
                 {sources.length > 1 && (

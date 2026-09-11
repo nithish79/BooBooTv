@@ -22,3 +22,10 @@ release/
 portable/bin/*.exe
 portable/node_modules/
 portable/dist/
+
+# Android TV build artifacts
+Android TV/.gradle/
+Android TV/.kotlin/
+Android TV/local.properties
+Android TV/**/build/
+Android TV/**/*.apk

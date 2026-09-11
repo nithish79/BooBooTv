@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 5% TV Safe Zone margins -->
+    <dimen name="tv_overscan_horizontal">32dp</dimen>
+    <dimen name="tv_overscan_vertical">24dp</dimen>
+</resources>

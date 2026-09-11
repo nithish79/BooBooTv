@@ -67,12 +67,23 @@ export async function handleProxy(req: Request, res: Response) {
     }
 
     const contentType = upstreamRes.headers.get('content-type') || '';
-    const isM3U8 = 
+
+    // Explicit segment check: Video/audio MIME types or chunk file extensions are NEVER manifests
+    const isSegment =
+      contentType.startsWith('video/') ||
+      contentType.includes('video/mp2t') ||
+      contentType.includes('video/mp4') ||
+      contentType.includes('audio/mp4') ||
+      contentType.includes('audio/aac') ||
+      /\.(ts|m4s|mp4|aac|vtt|key)(\?|$)/i.test(targetUrl);
+
+    const isM3U8 = !isSegment && (
       contentType.includes('application/vnd.apple.mpegurl') ||
       contentType.includes('application/x-mpegurl') ||
       contentType.includes('audio/x-mpegurl') ||
-      targetUrl.toLowerCase().includes('.m3u8') ||
-      targetUrl.toLowerCase().includes('.smil');
+      /\.m3u8(\?|$)/i.test(targetUrl) ||
+      (targetUrl.toLowerCase().includes('.smil') && !targetUrl.toLowerCase().includes('.ts'))
+    );
 
     // Get final resolved URL after redirects
     const finalUrl = upstreamRes.url || targetUrl;
@@ -92,6 +103,14 @@ export async function handleProxy(req: Request, res: Response) {
       
       // If text doesn't look like an m3u8 playlist (e.g. ISP block page, HTML error page, Cloudflare challenge)
       if (!text.includes('#EXTM3U') && !text.includes('#EXTINF')) {
+        // Fallback: If payload starts with MPEG-TS sync byte (0x47), it is a binary TS chunk misclassified as manifest
+        if (text.charCodeAt(0) === 0x47) {
+          res.setHeader('Content-Type', 'video/MP2T');
+          res.setHeader('Cache-Control', 'public, max-age=3600');
+          res.status(upstreamRes.status).send(Buffer.from(text, 'binary'));
+          return;
+        }
+
         res.status(502).json({
           error: 'Upstream did not return a valid M3U8 manifest',
           status: upstreamRes.status,

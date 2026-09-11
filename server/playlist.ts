@@ -17,6 +17,12 @@ let streamsLastFetched = 0;
 // Known problematic / blocked / dead domains in raw community playlists
 const PROBLEMATIC_DOMAINS = [
   'aynascope.net',              // ISP blocked (returns HTML block page)
+  'aynaott.com',                // Dead host / offline
+  'cloudplay-sonyliv.pages.dev',// Expired Akamai tokens returning 403 Forbidden
+  'dishmt.slivcdn.com',         // 403 Forbidden Akamai
+  '103.253.18.58:8000',         // 403 Forbidden Astra server
+  '103.157.248.140:8000',       // 404 Not Found
+  '121.91.61.106:8000',         // Dead host (connection timed out)
   '23.237.104.106:8080',        // Dead Xtream server (timed out)
   '88.212.15.19',               // Dead host (connection refused)
   'stream.cammonitorplus.net',  // Dead host (connection timed out)
@@ -206,12 +212,61 @@ export async function parseM3U(content: string, sourceUrl: string): Promise<Play
         }
       }
 
+      // If channel is Asianet (Malayalam/Kannada/Telugu news & entertainment), attach active verified feeds
+      if (nameLower.includes('asianet') || tvgLower.includes('asianet')) {
+        let asianetFallbacks: string[] = [];
+        if (nameLower.includes('suvarna') || tvgLower.includes('suvarna')) {
+          // Asianet Suvarna News (Kannada)
+          asianetFallbacks = [
+            'https://asianetnews.vgcdn.net/vglive-sk-335835/playlist.m3u8',
+            'https://www.youtube.com/@AsianetSuvarnaNews/live',
+          ];
+        } else if (nameLower.includes('telugu') || tvgLower.includes('telugu')) {
+          // Asianet News Telugu
+          asianetFallbacks = [
+            'https://www.youtube.com/@AsianetNewsTelugu/live',
+          ];
+        } else if (nameLower.includes('movies') || tvgLower.includes('movies')) {
+          // Asianet Movies HD
+          asianetFallbacks = [
+            'https://da86m1sqpm3o0.cloudfront.net/28072023/smil:asianetmovies1.smil/playlist.m3u8',
+          ];
+        } else if (nameLower.includes('news') || tvgLower.includes('news')) {
+          // Asianet News (Malayalam) - High quality verified 1080p HLS + low-latency + YouTube
+          asianetFallbacks = [
+            'https://asianet-samsung.vgcdn.net/ptnr-monitoring/vglive-sk-906908/playlist.m3u8',
+            'https://asianetnews.vgcdn.net/vglive-sk-917600/playlist.m3u8',
+            'https://www.youtube.com/@asianetnews/live',
+          ];
+        } else {
+          // Asianet HD / Asianet General / Asianet Middle East
+          asianetFallbacks = [
+            'https://raw.githubusercontent.com/amazeyourself/adaptive-streams/refs/heads/main/streams/in/YuppTV/AsianetHD.m3u8',
+            'https://mumt03.tangotv.in/Dsly5z3HASIANETMIDDLEEAST/index.m3u8',
+            'https://da86m1sqpm3o0.cloudfront.net/28072023/smil:starasianet.smil/chunklist_b1928000.m3u8',
+          ];
+        }
+
+        for (const fb of asianetFallbacks) {
+          if (!alternatives.includes(fb)) {
+            alternatives.push(fb);
+          }
+        }
+      }
+
       // Sort alternatives so problematic/blocked streams are moved to the end,
       // and verified healthy streams are prioritized at the top
       alternatives.sort((a, b) => {
         const aProb = isProblematicUrl(a) ? 1 : 0;
         const bProb = isProblematicUrl(b) ? 1 : 0;
-        return aProb - bProb;
+        if (aProb !== bProb) return aProb - bProb;
+
+        // Prioritize verified high-performance CDNs and live edge servers (vgcdn, cloudfront, tangotv, 38.96.178.205)
+        const aHighPerf = (a.includes('vgcdn.net') || a.includes('cloudfront.net') || a.includes('tangotv.in') || a.includes('38.96.178.205')) ? 1 : 0;
+        const bHighPerf = (b.includes('vgcdn.net') || b.includes('cloudfront.net') || b.includes('tangotv.in') || b.includes('38.96.178.205')) ? 1 : 0;
+        if (aHighPerf !== bHighPerf) return bHighPerf - aHighPerf;
+
+        return 0;
       });
 
       // Update primary URL to top sorted alternative

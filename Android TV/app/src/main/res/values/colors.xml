@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_primary">#020617</color>
+    <color name="bg_secondary">#0f172a</color>
+    <color name="bg_card">#1e293b</color>
+    <color name="bg_card_focused">#2d3748</color>
+    <color name="bg_overlay">#CC020617</color>
+    
+    <color name="brand_primary">#0284c7</color>
+    <color name="brand_focused">#38bdf8</color>
+    <color name="brand_glow">#4038bdf8</color>
+    
+    <color name="accent_gold">#f59e0b</color>
+    <color name="accent_red">#ef4444</color>
+    <color name="accent_green">#10b981</color>
+    <color name="accent_purple">#a855f7</color>
+    
+    <color name="text_primary">#f8fafc</color>
+    <color name="text_secondary">#94a3b8</color>
+    <color name="text_muted">#64748b</color>
+    <color name="divider">#1e293b</color>
+</resources>

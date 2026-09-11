@@ -1,0 +1,90 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+    <!-- Antennae -->
+    <path
+        android:strokeColor="#38bdf8"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M52,28 L36,12" />
+    <path
+        android:strokeColor="#f472b6"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M68,28 L84,12" />
+
+    <!-- Antenna Toppers (Stars/Hearts) -->
+    <path
+        android:fillColor="#facc15"
+        android:pathData="M36,7 L37.5,10.5 L41,11 L38.5,13 L39,16.5 L36,14.8 L33,16.5 L33.5,13 L31,11 L34.5,10.5 Z" />
+    <path
+        android:fillColor="#f472b6"
+        android:pathData="M84,8 C82,6 79,7 79,9 C79,12 84,15 84,15 C84,15 89,12 89,9 C89,7 86,6 84,8 Z" />
+
+    <!-- Cute TV Feet -->
+    <path
+        android:fillColor="#0284c7"
+        android:pathData="M32,100 L26,112 A3,3 0 0,0 31,115 L38,100 Z" />
+    <path
+        android:fillColor="#0284c7"
+        android:pathData="M88,100 L94,112 A3,3 0 0,0 89,115 L82,100 Z" />
+
+    <!-- Outer TV Body (Curved TV Frame) -->
+    <path
+        android:fillColor="#0f172a"
+        android:strokeColor="#38bdf8"
+        android:strokeWidth="4"
+        android:pathData="M24,28 H96 A16,16 0 0,1 112,44 V84 A16,16 0 0,1 96,100 H24 A16,16 0 0,1 8,84 V44 A16,16 0 0,1 24,28 Z" />
+
+    <!-- Inner Screen -->
+    <path
+        android:fillColor="#1e293b"
+        android:pathData="M24,36 H96 A8,8 0 0,1 104,44 V84 A8,8 0 0,1 96,92 H24 A8,8 0 0,1 16,44 V44 A8,8 0 0,1 24,36 Z" />
+
+    <!-- Kawaii Eyes (Left & Right) -->
+    <!-- Left Eye -->
+    <path
+        android:fillColor="#ffffff"
+        android:pathData="M40,54 A6,6 0 1,1 40,66 A6,6 0 1,1 40,54 Z" />
+    <path
+        android:fillColor="#0f172a"
+        android:pathData="M41,55 A4.5,4.5 0 1,1 41,64 A4.5,4.5 0 1,1 41,55 Z" />
+    <path
+        android:fillColor="#ffffff"
+        android:pathData="M43,57 A1.8,1.8 0 1,1 43,60.6 A1.8,1.8 0 1,1 43,57 Z" />
+
+    <!-- Right Eye -->
+    <path
+        android:fillColor="#ffffff"
+        android:pathData="M80,54 A6,6 0 1,1 80,66 A6,6 0 1,1 80,54 Z" />
+    <path
+        android:fillColor="#0f172a"
+        android:pathData="M79,55 A4.5,4.5 0 1,1 79,64 A4.5,4.5 0 1,1 79,55 Z" />
+    <path
+        android:fillColor="#ffffff"
+        android:pathData="M77,57 A1.8,1.8 0 1,1 77,60.6 A1.8,1.8 0 1,1 77,57 Z" />
+
+    <!-- Rosy Cheeks (Blushing) -->
+    <path
+        android:fillColor="#f472b6"
+        android:pathData="M31,68 A5,3.2 0 1,1 31,74.4 A5,3.2 0 1,1 31,68 Z" />
+    <path
+        android:fillColor="#f472b6"
+        android:pathData="M89,68 A5,3.2 0 1,1 89,74.4 A5,3.2 0 1,1 89,68 Z" />
+
+    <!-- Smiling Mouth -->
+    <path
+        android:strokeColor="#f8fafc"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M54,68 Q60,76 66,68" />
+
+    <!-- Cute Screen Sparkle -->
+    <path
+        android:fillColor="#38bdf8"
+        android:pathData="M24,42 L25,44 L27,45 L25,46 L24,48 L23,46 L21,45 L23,44 Z" />
+
+</vector>
