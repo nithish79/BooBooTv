@@ -8,6 +8,7 @@ export interface Channel {
   group: string;
   url: string;
   type: StreamType;
+  quality?: string;
 }
 
 export interface GroupInfo {
@@ -50,4 +51,35 @@ export interface StreamStats {
   totalFrames: number;
   codec: string;
   latency: number;
+}
+
+export interface IptvCategory {
+  id: string;
+  name: string;
+  description?: string;
+  url: string;
+}
+
+export interface IptvCountry {
+  code: string;
+  name: string;
+  flag: string;
+  languages?: string[];
+  url: string;
+}
+
+export interface FeaturedPreset {
+  id: string;
+  name: string;
+  description: string;
+  badge?: string;
+  url: string;
+  icon: string;
+}
+
+export interface IptvOrgCatalog {
+  featured: FeaturedPreset[];
+  categories: IptvCategory[];
+  countries: IptvCountry[];
+  updatedAt: number;
 }

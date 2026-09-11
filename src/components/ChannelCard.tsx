@@ -98,6 +98,11 @@ export const ChannelCard: React.FC<ChannelCardProps> = ({
               <span className="font-semibold text-xs truncate max-w-[170px]">
                 {channel.name}
               </span>
+              {channel.quality && (
+                <span className="text-[9px] bg-brand-500/20 text-brand-300 font-bold px-1.5 py-0.2 rounded font-mono flex-shrink-0">
+                  {channel.quality}
+                </span>
+              )}
               {isActive && (
                 <span className="w-2 h-2 rounded-full bg-brand-400 animate-pulse flex-shrink-0"></span>
               )}
@@ -145,13 +150,18 @@ export const ChannelCard: React.FC<ChannelCardProps> = ({
           : 'bg-dark-900/70 hover:bg-dark-850/90 border-slate-800 hover:border-slate-700 hover:scale-[1.01]'
       }`}
     >
-      {/* Header: Type icon and Star */}
+      {/* Header: Type icon, Country, Quality, and Star */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           {getChannelTypeIcon()}
           {channel.country && (
             <span className="text-[10px] bg-dark-800/80 text-slate-400 px-1.5 py-0.5 rounded font-mono font-medium">
               {channel.country}
+            </span>
+          )}
+          {channel.quality && (
+            <span className="text-[9px] bg-brand-500/20 text-brand-300 font-bold px-1.5 py-0.2 rounded font-mono">
+              {channel.quality}
             </span>
           )}
         </div>

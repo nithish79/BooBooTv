@@ -17,12 +17,31 @@ export function detectClientStreamType(url: string): StreamType {
   return 'hls';
 }
 
+function extractQuality(rawName: string): { cleanName: string; quality?: string } {
+  const match = rawName.match(/[\(\[]\s*(\d{3,4}p|4K|2K|FHD|HD|SD)\s*[\)\]]/i);
+  if (match) {
+    const quality = match[1].toUpperCase();
+    const cleanName = rawName.replace(match[0], '').trim();
+    return { cleanName: cleanName || rawName, quality };
+  }
+  return { cleanName: rawName };
+}
+
+function extractCountryFromTvgId(tvgId?: string): string {
+  if (!tvgId) return '';
+  const match = tvgId.match(/\.([a-z]{2})(@|$)/i);
+  if (match) {
+    return match[1].toUpperCase();
+  }
+  return '';
+}
+
 export function parseClientM3U(content: string, sourceUrl = 'custom-playlist'): PlaylistData {
   const lines = content.split(/\r?\n/);
   const channels: Channel[] = [];
   const groupCounts = new Map<string, number>();
 
-  let currentMeta: Partial<Channel> | null = null;
+  let currentMeta: Partial<Channel> & { tvgId?: string } | null = null;
   let counter = 0;
 
   for (let i = 0; i < lines.length; i++) {
@@ -40,18 +59,27 @@ export function parseClientM3U(content: string, sourceUrl = 'custom-playlist'): 
       const commaIdx = line.lastIndexOf(',');
       const rawTitle = commaIdx !== -1 ? line.substring(commaIdx + 1).trim() : '';
 
-      const name = (nameMatch && nameMatch[1].trim()) || rawTitle || `Channel ${counter}`;
+      const nameCandidate = (nameMatch && nameMatch[1].trim()) || rawTitle || `Channel ${counter}`;
+      const { cleanName, quality } = extractQuality(nameCandidate);
+
       const group = (groupMatch && groupMatch[1].trim()) || 'General';
-      const country = (countryMatch && countryMatch[1].trim()) || '';
       const logo = (logoMatch && logoMatch[1].trim()) || '';
-      const id = (idMatch && idMatch[1].trim()) || `ch-${counter}`;
+      const tvgId = (idMatch && idMatch[1].trim()) || '';
+      const id = tvgId || `ch-${counter}`;
+
+      let country = (countryMatch && countryMatch[1].trim()) || '';
+      if (!country && tvgId) {
+        country = extractCountryFromTvgId(tvgId);
+      }
 
       currentMeta = {
         id: `${id}-${counter}`,
-        name,
+        name: cleanName,
         logo,
         country,
         group,
+        quality,
+        tvgId,
       };
     } else if (!line.startsWith('#') && currentMeta) {
       const url = line;
@@ -65,6 +93,7 @@ export function parseClientM3U(content: string, sourceUrl = 'custom-playlist'): 
         group: currentMeta.group || 'General',
         url,
         type,
+        quality: currentMeta.quality,
       };
 
       channels.push(channel);

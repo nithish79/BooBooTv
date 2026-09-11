@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 export default function App() {
   const [playlistUrl, setPlaylistUrl] = useLocalStorage<string>('openiptv_playlist_url', DEFAULT_PLAYLIST_URL);
+  const [playlistTitle, setPlaylistTitle] = useLocalStorage<string>('openiptv_playlist_title', 'Free-TV Global');
   const [channels, setChannels] = useState<Channel[]>([]);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
@@ -47,9 +48,10 @@ export default function App() {
   const favoriteIdsSet = useMemo(() => new Set(favorites), [favorites]);
 
   // Fetch playlist from server or custom source
-  const loadPlaylist = useCallback(async (url: string, reload = false) => {
+  const loadPlaylist = useCallback(async (url: string, reload = false, title?: string) => {
     setIsLoading(true);
     setLoadError(null);
+    if (title) setPlaylistTitle(title);
 
     try {
       const endpoint = `/api/playlist?url=${encodeURIComponent(url)}${reload ? '&reload=true' : ''}`;
@@ -60,18 +62,14 @@ export default function App() {
       const data: PlaylistData = await res.json();
       setChannels(data.channels);
       setGroups(data.groups);
-
-      // Auto-select first channel if none selected
-      if (data.channels.length > 0 && !activeChannel) {
-        // Leave activeChannel as null or select first
-      }
+      setSelectedCategory('__ALL__');
     } catch (err: any) {
       console.error('Failed to load playlist:', err);
       setLoadError(err.message || 'Failed to load playlist');
     } finally {
       setIsLoading(false);
     }
-  }, [activeChannel]);
+  }, [setPlaylistTitle]);
 
   useEffect(() => {
     loadPlaylist(playlistUrl);
@@ -134,6 +132,7 @@ export default function App() {
     setChannels(data.channels);
     setGroups(data.groups);
     setPlaylistUrl('Uploaded File: ' + data.url);
+    setPlaylistTitle('Uploaded: ' + data.url);
     setSelectedCategory('__ALL__');
     setActiveChannel(null);
   };
@@ -186,14 +185,18 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-dark-950">
-      {/* Top Header */}
+      {/* Top Header with Quick Presets */}
       <Header
-        playlistName={playlistUrl.includes('master/playlist.m3u8') ? 'Free-TV Global' : playlistUrl}
+        playlistTitle={playlistTitle}
         isSidebarOpen={isSidebarOpen}
         isLoading={isLoading}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         onOpenPlaylistModal={() => setIsPlaylistOpen(true)}
-        onReloadPlaylist={() => loadPlaylist(playlistUrl, true)}
+        onSelectQuickPreset={(url, name) => {
+          setPlaylistUrl(url);
+          loadPlaylist(url, false, name);
+        }}
+        onReloadPlaylist={() => loadPlaylist(playlistUrl, true, playlistTitle)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
       />
@@ -265,9 +268,9 @@ export default function App() {
         currentUrl={playlistUrl}
         isOpen={isPlaylistOpen}
         onClose={() => setIsPlaylistOpen(false)}
-        onLoadUrl={(url) => {
+        onLoadUrl={(url, name) => {
           setPlaylistUrl(url);
-          loadPlaylist(url, true);
+          loadPlaylist(url, true, name);
         }}
         onLoadCustomData={handleLoadCustomData}
       />

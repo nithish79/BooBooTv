@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { fetchPlaylist, DEFAULT_PLAYLIST_URL } from './playlist.js';
 import { handleProxy } from './proxy.js';
 import { resolveYouTubeVideoId } from './resolver.js';
+import { getIptvOrgCatalog } from './iptvOrg.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,6 +57,16 @@ app.get('/api/resolve', async (req, res) => {
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to resolve video', details: err.message });
+  }
+});
+
+// IPTV-Org Database Catalog (Categories, Countries, Curated Presets)
+app.get('/api/iptv-org/catalog', async (req, res) => {
+  try {
+    const catalog = await getIptvOrgCatalog();
+    res.json(catalog);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to get IPTV-org catalog', details: err.message });
   }
 });
 
