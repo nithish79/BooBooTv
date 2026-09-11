@@ -1,0 +1,52 @@
+{
+  "name": "open-iptv",
+  "version": "1.0.0",
+  "description": "A modern, open-source IPTV player with HLS streaming, CORS proxy, and channel manager.",
+  "type": "module",
+  "scripts": {
+    "dev:server": "tsx watch server/index.ts",
+    "dev:client": "vite",
+    "dev": "concurrently -k -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm.cmd run dev:server\" \"npm.cmd run dev:client\"",
+    "build:client": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build": "npm.cmd run build:client && npm.cmd run build:server",
+    "start": "node dist/server/index.js",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "iptv",
+    "player",
+    "m3u",
+    "m3u8",
+    "hls",
+    "streaming",
+    "open-source"
+  ],
+  "author": "OpenIPTV Contributors",
+  "license": "MIT",
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "hls.js": "^1.5.17",
+    "lucide-react": "^0.475.0",
+    "tailwind-merge": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.13.4",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "postcss": "^8.5.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0"
+  }
+}
